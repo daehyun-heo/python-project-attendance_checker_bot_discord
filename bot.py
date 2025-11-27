@@ -1,80 +1,105 @@
 import discord
 import os
+from discord import app_commands
 from discord.ext import commands
-from discord.ext.commands.context import Context
 from dotenv import load_dotenv
-import db as db 
+import db
 
-# Setting
-
-load_dotenv() 
+load_dotenv()
 intents = discord.Intents.default()
 intents.message_content = True
-bot = commands.Bot(command_prefix='!', intents=intents)
+bot = commands.Bot(command_prefix="!", intents=intents)
+tree = bot.tree
 
 if not os.path.exists("attendance.db"):
     db.init_db()
 
-# Function
-
-bot.remove_command("help")
- 
 @bot.event
 async def on_ready():
-    print('Done')
-    await bot.change_presence(status=discord.Status.online, activity=None)
+    await bot.change_presence(status=discord.Status.online)
+    await tree.sync()
 
-@bot.command()
-async def hello(ctx:Context):
-    await ctx.send("Hello, I'm attendance checker bot!", silent=True)
 
-@bot.command()
-async def about(ctx:Context):
-    await ctx.send(
-        'attendance_checker_bot made by daehyun-heo (hyeon365@gmail.com)',
-        silent=True
+@tree.command(name="about", description="봇 정보 표시")
+async def about(interaction: discord.Interaction):
+    await interaction.response.send_message(
+        "attendance_checker_bot made by daehyun-heo (hyeon365@gmail.com)",
+        ephemeral=True
     )
 
-@bot.command()
-async def help(ctx:Context):
-    innerTxt = (
-        "모든 명령어는 !(명령어) 형식으로 입력해주세요.\n"
-        "hello : 인삿말 출력\n"
-        "about : bot 정보 출력\n"
-        "help : 도움말 출력\n"
-        "check_in : 출근 기록\n"
-        "check_out : 퇴근 기록\n"
-        "status @사용자명 : 특정 사용자 출근/퇴근 상태 출력\n"
-        "status : 자기 자신의 출근/퇴근 상태 출력\n"
-        "who_online : 현재 출근 중인 사용자 목록 출력"
+
+@tree.command(name="help", description="명령어 목록")
+async def help_cmd(interaction: discord.Interaction):
+    txt = (
+        "/about : 봇 정보\n"
+        "/help : 명령어 도움말\n"
+        "/check_in : 출근\n"
+        "/check_out : 퇴근\n"
+        "/log : 특정 사용자 또는 나의 출퇴근 기록\n"
+        "/log_all : 전체 출퇴근 기록"
     )
-    await ctx.send(innerTxt, silent=True)
+    await interaction.response.send_message(txt, ephemeral=True)
 
-@bot.command()
-async def check_in(ctx:Context):
-    db.check_in(ctx.author.name)
-    await ctx.send(f"{ctx.author.name} checked-in.", silent=True)
 
-@bot.command()
-async def check_out(ctx:Context):
-    db.check_out(ctx.author.name)
-    await ctx.send(f"{ctx.author.name} checked-out.", silent=True)
+@tree.command(name="check_in", description="출근 기록")
+async def check_in(interaction: discord.Interaction):
+    now = db.check_in(interaction.user.name)
+    await interaction.response.send_message(
+        f"{interaction.user.name} checked-in. {now}",
+        ephemeral=True
+    )
 
-@bot.command()
-async def status(ctx:Context, member: discord.Member = None):
-    member = member or ctx.author
-    res = db.get_status(member.name)
-    await ctx.send(f"{member.name} is {res}.", silent=True)
 
-@bot.command()
-async def who_online(ctx:Context):
-    res = db.get_online_users() 
+@tree.command(name="check_out", description="퇴근 기록")
+async def check_out(interaction: discord.Interaction):
+    out, duration = db.check_out(interaction.user.name)
+    if duration is None:
+        await interaction.response.send_message("출근 기록 없음.", ephemeral=True)
+        return
+    await interaction.response.send_message(
+        f"{interaction.user.name} checked-out. {out}\n근무시간: {duration}",
+        ephemeral=True
+    )
 
-    if not res:
-        await ctx.send("출근 중인 사용자가 없습니다.", silent=True)
+
+
+@tree.command(name="log", description="사용자 출퇴근 로그 조회")
+@app_commands.describe(member="조회할 사용자 (미입력 시 본인)")
+async def log_cmd(interaction: discord.Interaction, member: discord.Member = None):
+    target = member or interaction.user
+    logs = db.get_log(target.name)
+
+    if not logs:
+        await interaction.response.send_message(
+            f"{target.name} : 기록 없음",
+            ephemeral=True
+        )
         return
 
-    innerTxt = ", ".join([f"{name}({time})" for name, time in res])
-    await ctx.send(innerTxt, silent=True)
+    lines = [f"{i+1}. {c[0]} → {c[1]}" for i, c in enumerate(logs)]
+
+    await interaction.response.send_message(
+        f"{target.name} 기록:\n" + "\n".join(lines),
+        ephemeral=True
+    )
+
+
+
+@tree.command(name="log_all", description="모든 사용자 출퇴근 로그")
+async def log_all(interaction: discord.Interaction):
+    logs = db.get_logs()
+    if not logs:
+        await interaction.response.send_message("기록 없음.", ephemeral=True)
+        return
+
+    msg = ""
+    for user, pairs in logs.items():
+        msg += f"{user}:\n"
+        for c in pairs:
+            msg += f" - {c[0]} → {c[1]}\n"
+        msg += "\n"
+
+    await interaction.response.send_message(msg, ephemeral=True)
+
 
 bot.run(os.getenv("DISCORD_TOKEN"))
