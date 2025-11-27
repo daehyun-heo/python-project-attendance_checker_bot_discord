@@ -41,9 +41,16 @@ async def check_out(ctx:Context):
     await ctx.send(f"{ctx.author.name} checked-out.")
 
 @bot.command()
-async def status(ctx, member: discord.Member = None):
+async def status(ctx:Context, member: discord.Member = None):
     member = member or ctx.author  # 인자 없으면 자기 자신
     res = db.get_status(member.name)
-    await ctx.send(f"{member.name} {res}.")
+    await ctx.send(f"{member.name} is {res}.")
+
+@bot.command()
+async def who_online(ctx:Context):
+    res = db.get_online_users() # res 가 리스트인걸 생각
+    innerTxt = " , ".join(res)
+    await ctx.send(f"{innerTxt}")
+
 
 bot.run(os.getenv("DISCORD_TOKEN"))
