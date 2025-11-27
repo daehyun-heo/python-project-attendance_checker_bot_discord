@@ -89,7 +89,7 @@ def get_online_users():
     # 같은 유저의 여러 기록 중 가장 마지막 기록만 고려해야 함
     # 방법: username별로 마지막(id 최대) row만 골라서 조회
     cur.execute("""
-        SELECT a.username
+        SELECT a.username, a.checkin_time
         FROM attendance a
         INNER JOIN (
             SELECT username, MAX(id) AS max_id
@@ -102,8 +102,7 @@ def get_online_users():
     """, (today,))
 
     rows = cur.fetchall()
-    lst = [r[0] for r in rows]
     conn.close()
 
-    return lst
+    return rows
 
