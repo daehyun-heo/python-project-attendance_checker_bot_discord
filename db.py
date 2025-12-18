@@ -24,6 +24,17 @@ def check_in(username):
     conn = sqlite3.connect("attendance.db")
     cur = conn.cursor()
 
+    cur.execute("""
+        SELECT id, checkin
+        FROM attendance
+        WHERE username = ? AND checkout IS NULL
+        ORDER BY id DESC
+        LIMIT 1
+    """, (username,))
+    
+    row = cur.fetchone()
+    if row: return None
+
     now = datetime.now()
     now_str = now.strftime("%Y-%m-%d %H:%M:%S")
 

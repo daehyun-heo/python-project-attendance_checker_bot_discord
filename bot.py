@@ -44,10 +44,16 @@ async def help_cmd(interaction: discord.Interaction):
 @tree.command(name="check_in", description="출근 기록")
 async def check_in(interaction: discord.Interaction):
     now = db.check_in(interaction.user.name)
-    await interaction.response.send_message(
-        f"{interaction.user.name} checked-in. {now}",
+    if now is None:
+        await interaction.response.send_message(
+        "please, check-out first.",
         ephemeral=True
     )
+    else:
+        await interaction.response.send_message(
+            f"{interaction.user.name} checked-in. {now}",
+            ephemeral=True
+        )
 
 
 @tree.command(name="check_out", description="퇴근 기록")
